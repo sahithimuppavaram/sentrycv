@@ -3,8 +3,10 @@ classes: [0, 2]
 detector: yolov8n.pt        # auto-downloads on first run; upgrade to yolov8s/m later
 tracker: bytetrack.yaml     # shipped with ultralytics
 # Motion gate
-motion_min_area_ratio: 0.002   # fraction of frame that must change to wake detector
+motion_min_area_ratio: 0.02   # fraction of frame that must change to wake detector
 motion_cooldown: 5             # keep detecting for N frames after motion stops
 # Re-ID
-reid_similarity_threshold: 0.55
+reid_similarity_threshold: 0.8
 crops_dir: data/crops
+frame_stride: 5
+imgsz: 320

@@ -4,6 +4,10 @@ pipeline.py  --  per-camera detect + track, gated by MotionGate.
 Uses ultralytics YOLOv8 with built-in ByteTrack. When the motion gate says
 "idle", we skip the detector entirely and just carry the last annotated frame.
 Person crops are saved per (camera, track_id) for the cross-camera re-ID step.
+
+Speed knobs (safe to tune in configs/default.yaml):
+  frame_stride : only look at every Nth frame (video is ~30 fps, so 5 is plenty)
+  imgsz        : shrink each frame before detection (smaller = much faster)
 """
 import os
 import cv2
@@ -21,6 +25,8 @@ class CameraPipeline:
         self.crops_dir = os.path.join(cfg["crops_dir"], f"cam{cam_id}")
         os.makedirs(self.crops_dir, exist_ok=True)
         self.last_annotated = None
+        self.frame_stride = int(cfg.get("frame_stride", 5))
+        self.imgsz = int(cfg.get("imgsz", 320))
 
     def run(self, on_frame=None, max_frames=None):
         cap = cv2.VideoCapture(self.source)
@@ -31,10 +37,14 @@ class CameraPipeline:
                 break
             i += 1
 
+            # SPEED: only look at every Nth frame
+            if i % self.frame_stride != 0:
+                continue
+
             if self.gate.should_process(frame):
                 # persist=True keeps ByteTrack IDs stable across frames
                 res = self.model.track(
-                    frame, persist=True, verbose=False,
+                    frame, persist=True, verbose=False, imgsz=self.imgsz,
                     classes=self.cfg["classes"], tracker=self.cfg["tracker"],
                 )[0]
                 annotated = res.plot()
@@ -55,11 +65,11 @@ class CameraPipeline:
         if res.boxes is None or res.boxes.id is None:
             return
         for box, tid, cls in zip(res.boxes.xyxy, res.boxes.id, res.boxes.cls):
-            if int(cls) != 0:      # only save people for re-ID
+            if int(cls) != 0:      # only save people (class 0) for re-ID
                 continue
             x1, y1, x2, y2 = map(int, box.tolist())
             crop = frame[max(0, y1):y2, max(0, x1):x2]
             if crop.size == 0:
                 continue
-            path = os.path.join(self.crops_dir, f"id{int(tid)}_f{res.speed and ''}{y1}{x1}.jpg")
+            path = os.path.join(self.crops_dir, f"id{int(tid)}_f{x1}{y1}.jpg")
             cv2.imwrite(path, crop)
