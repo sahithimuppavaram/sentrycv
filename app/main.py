@@ -1,10 +1,15 @@
 """
-app/main.py  --  minimal FastAPI dashboard.
+app/main.py  --  minimal FastAPI dashboard (looping version).
 
-Runs the two-camera pipeline in a background thread and serves the annotated
-frames + live compute-saved stats. Start with:  uvicorn app.main:app --reload
+Runs the two-camera pipeline in background threads and serves the annotated
+frames + live compute-saved stats. When a video reaches its end, it restarts
+from the beginning so the dashboard runs continuously.
+
+Start with:  uvicorn app.main:app --reload
+Then open:   http://localhost:8000
 """
 import threading
+import time
 import cv2
 import yaml
 from fastapi import FastAPI
@@ -25,7 +30,10 @@ def _on_frame(cam_id, frame, report):
 
 
 def _start(cam_id, source):
-    CameraPipeline(cam_id, source, CFG).run(on_frame=_on_frame)
+    # LOOP: when the video ends, run it again from the top, forever
+    while True:
+        CameraPipeline(cam_id, source, CFG).run(on_frame=_on_frame)
+        time.sleep(0.5)   # brief pause before restarting
 
 
 # EDIT these two sources: file paths, or 0 / 1 for webcam + phone-cam
@@ -43,6 +51,7 @@ def _stream(cam_id):
         f = _latest.get(cam_id)
         if f:
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + f + b"\r\n"
+        time.sleep(0.03)   # ~30 fps cap so the browser stream stays smooth
 
 
 @app.get("/video/{cam_id}")
@@ -58,5 +67,5 @@ def stats():
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    imgs = "".join(f'<img src="/video/{c}" width="480">' for c in SOURCES)
+    imgs = "".join(f'<img src="/video/{c}" width="480" style="margin:6px">' for c in SOURCES)
     return f"<h2>SentryCV</h2>{imgs}<p>Live stats at <a href='/stats'>/stats</a></p>"
