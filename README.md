@@ -1,5 +1,7 @@
 # SentryCV
 
+#![SentryCV dashboard](demo.png)
+
 A small computer vision project that watches two camera feeds, finds the people and vehicles in them, follows each person as they move, and recognizes when the same person shows up in both cameras. It does all of this cheaply, by only waking up the heavy detection model when something in the frame actually moves.
 
 I built it to mirror how Verkada's computer vision team works: real time detection and tracking of people and vehicles, across many cameras, done efficiently at the edge, in a way that respects privacy.
